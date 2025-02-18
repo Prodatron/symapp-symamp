@@ -11,13 +11,97 @@
 ;todo
 
 
+;--- GENERAL DRIVER ROUTINES --------------------------------------------------
+;### HRDDET -> searches for additional sound hardware
+;### HRDINI -> selects correct hardware and inits it
+;### OP3SET -> set opl3 port addresses
+;### PSGSET -> patches sound routines for selected PSG sound hardware
+;### PT3FRQ -> sets PT3 frequency
+
+;--- CPC PSG ------------------------------------------------------------------
+;### CPCINI -> inits CPC-PSG sound output
+;### CPCREG -> reads PSG register from the CPC-PSG
+;### CPCSKM -> sends SKM register to the CPC-PSG
+;### CPCST2 -> sends ST2 register to the CPC-PSG (**NOT YET IN USE**)
+;### CPCPT3 -> sends PT3 registers to the CPC-PSG
+
+;--- MSX PSG ------------------------------------------------------------------
+;### MSXINI -> inits MSX-PSG sound output
+;### MSXREG -> reads PSG register from the MSX-PSG
+;### MSXSKM -> sends SKM register to the MSX-PSG
+;### MSXST2 -> sends ST2 register to the MSX-PSG
+;### MSXPT3 -> sends PT3 registers to the MSX-PSG
+
+;--- PCW PSG ------------------------------------------------------------------
+;### PCWDET -> tries to detect a dk'tronics AY soundexpansion
+;### PCWINI -> inits PCW-PSG sound output
+;### PCWREG -> reads PSG register from the PCW-PSG
+;### PCWSKM -> sends SKM register to the PCW-PSG
+;### PCWST2 -> sends ST2 register to the PCW-PSG
+;### PCWPT3 -> sends PT3 registers to the PCW-PSG
+
+;--- EP DAVE ------------------------------------------------------------------
+;### EPRINI -> inits EP-Dave sound output
+;### EPRREG -> reads PSG register from the EP-Dave
+;### EPRSKM -> sends SKM register to the EP-Dave
+;### EPRST2 -> sends ST2 register to the EP-Dave
+;### EPRPT3 -> sends PT3 registers to the EP-Dave
+
+;--- ZXS PSG ------------------------------------------------------------------
+;### ZXSINI -> inits ZXS-PSG sound output
+;### ZXSREG -> reads PSG register from the ZXS-PSG
+;### ZXSST2 -> sends ST2 register to the ZXS-PSG
+;### ZXSSKM -> sends SKM register to the ZXS-PSG
+;### ZXSPT3 -> sends PT3 registers to the ZXS-PSG
+
+;--- ZXS TURBOSOUND -----------------------------------------------------------
+;### TURINI -> inits TurboSound output
+;### TURPT3 -> sends PT3 registers to the TurboSound
+
+;--- CPC PLAYCITY -------------------------------------------------------------
+;### PCYDET -> tries to detect a PlayCity
+;### PCYINI -> inits PlayCity sound output
+;### PCYREG -> reads PSG register from the PlayCity (left)
+;### PCYSKM -> sends SKM register to the PlayCity (left)
+;### PCYST2 -> sends ST2 register to the PlayCity (left)
+;### PCYPT3 -> sends PT3 registers to the playcity
+
+;--- MSX/CPC DARKY ------------------------------------------------------------
+;### DKYDET -> tries to detect a Darky
+;### DKYINI -> inits Darky sound output
+;### DKYREG -> reads PSG register from the Darky (left)
+;### DKYSKM -> sends SKM register to the Darky (left)
+;### DKYST2 -> sends ST2 register to the Darky (left)
+;### DKYPT3 -> sends PT3 register to the Darky (left)
+
+;--- MSX/CPC/EP OPL4 ----------------------------------------------------------
+;### OP4DET -> tries to detect an OPL4 chip
+;### OP4MEM -> detects OPL4 wavetable memory
+
+;---
+
+
+OPL4_REG    equ #ff7e
+OPL4_DATA   equ #ff7f
+
+OPL4_FM_C6  equ #ffc6
+OPL4_FM_C7  equ #ffc7
+
+MACRO   opl4_wt
+        ld a,#ff
+        in a,(#c4)
+        and %11
+        jr nz,$-6
+MEND
+
+
 ;==============================================================================
 ;### GENERAL DRIVER ROUTINES ##################################################
 ;==============================================================================
 
 ;### HRDDET -> searches for additional sound hardware
 ;### Input      (hrdbas)=platform (1=CPC, 2=MSX, 3=PCW, 4=EP, 5=NXT)
-;### Output     HL=hardware (b[0]=PSG, b[1]=MP3MSX, b[2]=Playcity, b[3]=Darky, b[4]=OPL4, b[5]=OPL3, b[6]=TurboSound)
+;### Output     HL=hardware (b[0]=PSG, b[1]=MP3MSX, b[2]=PlayCity, b[3]=Darky, b[4]=OPL4, b[5]=OPL3, b[6]=TurboSound)
 hrddet  ld a,(hrdbas)
         ld hl,0
         cp 1
@@ -607,9 +691,7 @@ zxsst2  ld d,a
 ;### Input      D=register, A=data
 zxsskm  ld bc,ZXS_REGSEL
         out (c),d
-list
         ld b,ZXS_REGDAT/256
-nolist
         out (c),a
         ret
 
@@ -950,7 +1032,10 @@ dkypt31 xor a
 ;### OP4DET -> tries to detect an OPL4 chip
 ;### Output     CF=0 -> OPL4 found
 ;###            CF=1 -> no hardware detected
-op4det  call ini_wav
+op4det  ld a,(hrddem)
+        bit 1,a
+        jr nz,op4det3
+        call ini_wav
         ld bc,OPL4_REG
 ;	    opl4_wt
         ld a,2
@@ -967,19 +1052,21 @@ op4det1 di
         call op4mem
         ei
         ld (op4_64kbnk),a
-        ld de,64
+op4det4 ld de,64
         call clcm16
         push hl:pop ix
         ld iy,prfobjtxt1f1
         ld e,4
         call clcnum
-        ld (iy+1)," "
+op4det2 ld (iy+1)," "
         ld (iy+2),"K"
         ld (iy+3),"B"
         ld (iy+4),")"
         ld (iy+5),0
         or a
         ret
+op4det3 ld a,(op4_64kbnk)   ;sound daemon present with available opl4 -> use its detected memory size
+        jr op4det4
 
 ;### OP4MEM -> detects OPL4 wavetable memory
 ;### Output     A=number of 64K banks

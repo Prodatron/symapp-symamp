@@ -13,18 +13,18 @@
 ;- optimization (replace maal, sla/rl -> add hl,hl, srl/rr -> other direction)
 
 
-OPL4_REG    equ #ff7e
-OPL4_DATA   equ #ff7f
 
-OPL4_FM_C6  equ #ffc6
-OPL4_FM_C7  equ #ffc7
+;--- API-ROUTINES -------------------------------------------------------------
+;### MODLOD -> Loads MOD-Sound
+;### MODINI -> Initializes MOD-Sound
+;### MODVOL -> Set global volume
+;### MODVAL -> Get volume and frequency for a specific channel
+;### MODPLY -> Plays MOD-Sound (called every 50Hz interrupt)
+;### MODSTP -> Turn MOD-Sound off
+;### MODPOS -> Sets MOD-SOund on a specific location
 
-MACRO   opl4_wt
-        ld a,#ff
-        in a,(#c4)
-        and %11
-        jr nz,$-6
-MEND
+;---
+
 
 op4_64kbnk  db 0    ;number of 64k banks
 
@@ -33,11 +33,16 @@ op4_64kbnk  db 0    ;number of 64k banks
 ;### API-ROUTINES #############################################################
 ;==============================================================================
 
-;### MODLOD ->  Loads MOD-Sound
+;### MODLOD -> Loads MOD-Sound
 ;### Input      (sndfil)=found path and file
-;### Output     CF=0 -> ok, CF=1 -> Error, A=error type (1=disc, 2=format, 3=memory), C=disc error code
+;### Output     CF=0 -> ok, CF=1 -> Error, A=error type (1=disc, 2=format, 3=memory, 4=occupied), C=disc error code (if A=1)
 ;### Destroyed  AF,BC,DE,HL,IX,IY
-modlod  call mt_load
+modlod  ld a,(hrdext)       ;check if opl4 available
+        bit 4,a
+        ld a,2
+        scf
+        ret z
+        call mt_load
         ret c
         ld hl,modheader
         ld a,(hl)
@@ -50,7 +55,7 @@ modlod  call mt_load
         ld (de),a
         ret
 
-;### MODINI ->  Initializes MOD-Sound
+;### MODINI -> Initializes MOD-Sound
 ;### Input      HL=address
 ;### Output     CF=0 -> ok, HL=number of song positions, A=number of channels
 ;###	        CF=1 -> not supported format
@@ -100,7 +105,7 @@ modval  add a:add a:add a:add a
         cp 16
         ret c
         ld a,15
-	ret
+        ret
 
 ;### MODPLY -> Plays MOD-Sound (called every 50Hz interrupt)
 ;### Output     HL=Position, CF=1 -> Song ended
@@ -203,7 +208,15 @@ mod_init
 	db	#50,254,#51,254,#52,254,#53,254
 	db	0
 
-mod_load	db	#68,0,#69,0,#6a,0,#6b,0,0
+mod_load
+    db #68,0,#69,0,#6a,0,#6b,0,#6c,0,#6d,0,#6e,0,#6f,0                  ;disable all channels
+    db #70,0,#71,0,#72,0,#73,0,#74,0,#75,0,#76,0,#77,0
+    db #78,0,#79,0,#7a,0,#7b,0,#7c,0,#7d,0,#7e,0,#7f,0
+    db #50,254,#51,254,#52,254,#53,254,#54,254,#55,254,#56,254,#57,254  ;mute all channels
+    db #58,254,#59,254,#5a,254,#5b,254,#5c,254,#5d,254,#5e,254,#5f,254
+    db #60,254,#61,254,#62,254,#63,254,#64,254,#65,254,#66,254,#67,254
+    db 0
+
 
 wave_hdr
 	db	0,0,0	;start         (3b) 
@@ -730,10 +743,12 @@ mt_load
 	ld	a,%00000001
 	out	(c),a
 
-	ld	hl,#4701	;initalize address in opl4 mem. #200174 (31 samples with 12 bytes of header)
+mt_load2
+	ld	hl,#4701	;initalize address in opl4 mem. #200c00 (256 samples with 12 bytes of header)
 	ld	(address+1),hl
+mt_load3
 	ld	a,#20
-	ld	(address),a
+	ld	(address),a     ;#200147
 
 	ld	a,(App_BnkNum)
 	db	#dd:ld h,a
@@ -1008,7 +1023,7 @@ lengthready
 	ld	c,a
 	ld	b,0
 	ld	de,12
-	call	maal
+	call	maal    ;hl=lowadr
 	ld	a,#20       ;RAM starts at #200000 = 2MB
 	call	set_adr
 

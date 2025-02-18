@@ -2,23 +2,24 @@
 ;@                                                                            @
 ;@                                S y m  A m p                                @
 ;@                                                                            @
-;@             (c) 2005-2022 by Prodatron / SymbiosiS (Jörn Mika)             @
+;@             (c) 2005-2025 by Prodatron / SymbiosiS (Jörn Mika)             @
 ;@                                                                            @
 ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 ;todo
+;- move bitmaps to other bank
+;- dynamic bitrate display fix for mp3
 ;- options
 ;  - skip bad songs
 ;  - autosort list
 ;- songlist load -> reset marked song/position
 
-;- dynamic bitrate display fix for mp3
-
 ;- hauptprozess hängt sich manchmal bei song-add auf -> keine message von system-manager
 ;- clean up (kernel syslib, msgsnd, loader pro modul)
+;- songlist -> filediag open while playing -> next song starts at this time -> freeze
 
 ;modules/hardware
-;- direct SF3 playback!
+;- direct SF3 playback
 ;- darky bass/treble/panning/master volume
 ;- opl4 panning
 ;- ayc support
@@ -26,6 +27,145 @@
 
 ;new
 
+
+;--- CODE-TEIL ----------------------------------------------------------------
+;### PRGPRZ -> Programm-Prozess
+;### PRGHLP -> shows help
+;### PRGFOC -> Focus-Änderung von Hauptfenster verarbeiten
+;### PRGKEY -> Taste auswerten
+;### PRGEND -> Programm beenden
+;### PRGINF -> open info window
+;### PRGERR -> Disc-Error-Fenster anzeigen
+;### PRGDBL -> Test, ob Programm bereits läuft
+
+;--- SONG-INFO ----------------------------------------------------------------
+;### PRPLST -> Infos über Listeneintrag anzeigen
+;### PRPSNG -> Infos über geladenen Song anzeigen
+;### PRPOPN -> Songinfo-Fenster öffnen
+;### PRPLST -> Song-Infos generieren
+
+;--- SPECTRUM ANALYZER --------------------------------------------------------
+;### ANASWT -> Analyzer an-/ausschalten
+;### ANAOFF -> Analyzer löschen
+;### ANAPLT -> Plottet Analyzer
+;### ANAUPD -> Analyzer-Grafik updaten
+
+;--- PLAY-LIST ----------------------------------------------------------------
+;### LSTINI -> Playlist init (sets filename pointers)
+;### LSTNUM -> Playlist renumbering (generates numbers in front of filenames)
+;### LSTOPN -> Öffnet Playlist
+;### LSTSWT -> Schaltet Playliste an/aus
+;### LSTUPD -> Baut Liste neu auf inklusive Größe
+;### LSTREF -> Baut Liste neu auf
+;### LSTRSL -> Entfernt selektierte Einträge
+;### LSTLAS -> finds entry with last string
+;### LSTREM -> removes one entry
+;### LSTRAL -> Entfernt alle Einträge
+;### LSTSAL -> Selektiert alle Einträge
+;### LSTSNO -> Deselektiert alle Einträge
+;### LSTSIV -> Invertiert Selektion
+;### LSTEUP -> Selektierte Einträge einen Platz nach oben
+;### LSTEDW -> Selektierte Einträge einen Platz nach unten
+;### LSTADD -> adds filename to list
+;### LSTAFI -> Fügt Datei hinzu
+;### LSTADI -> Fügt Verzeichnis hinzu
+;### LSTCLK -> Doppelklick auf die Songliste
+;### LSTCHK -> Prüft, ob Liste Einträge hat
+;### LSTNXT -> Holt Pfad des nächsten Eintrages in der Playliste
+;### LSTPRV -> Holt Pfad des vorherigen Eintrages in der Playliste
+;### LSTRND -> Holt Pfad eines zufälligen Eintrages in der Playliste
+;### LSTAKT -> Holt Pfad des aktuellen Eintrages in der Playliste
+;### LSTSRT -> sort songlist
+;### LSTLOD -> Lädt Songliste
+;### LSTSAV -> Speichert Songliste
+
+;--- PATH ROUTINES ------------------------------------------------------------
+;### PTHFND -> searches for path, tries to add a new, if not found
+;### PTHGET -> gets path
+
+;--- SUB WINDOWS --------------------------------------------------------------
+;### WINUPD -> updates controls in main window
+;### WINOPN -> (HL)=winID, DE=win record -> opens windows, if not already opened
+;### WINCLO -> (HL)=winID -> closes windows, if opened
+;### PRFOPN -> opens preferences window
+;### PRFCLO -> closes preferences window
+;### MIXOPN -> opens equalizer
+;### MIXSWT -> switches equalizer on/off
+;### MIXVOL -> volume clicked
+;### MIXBAS -> bass clicked
+;### MIXTRE -> treble clicked
+;### MIXPAN -> panning clicked
+;### MIXSM0-3
+;### MIXCLK -> vertical mixer clicked
+;### MIXSHW -> shows vertical mixer setting
+;### MIXSET -> Setzt erweiterte Mixer-Einstellungen
+;### DIAOPN -> DE=data record -> opens dialoge window
+;### DIACNC -> closes dialoge window
+
+;--- CONTROLS -----------------------------------------------------------------
+;### CTLINC -> Spielzeit erhöhen
+;### CTLPUP -> Position anzeigen
+;### WINSLH -> updates h-slider position
+;### WINSLV -> updates v-slider position
+;### WINSLP -> calculates slider position
+;### CTLVUP -> Volume anzeigen
+;### CTLTUP -> Spielzeit anzeigen
+;### CTLSTA -> Spielstatus updaten
+;### CTLNRS -> Löscht Songnamen
+;### CTLNAM -> Setzt Songnamen
+;### CTLPLY -> Sound abspielen
+;### CTLPAU -> Sound anhalten
+;### CTLSTP -> Sound stoppen
+;### CTLSKF -> Skip forward
+;### CTLSKB -> Skip backward
+;### CTLPOS -> Position setzen
+;### CTLVLU -> Increase Volume
+;### CTLVLD -> Decrease Volume
+;### CTLVOL -> Volume setzen
+;### CTLREW -> Ein Lied zurück
+;### CTLFFW -> Ein Lied weiter
+;### CTLOPN -> neuen Sound laden
+;### CTLREP -> Repeat an/aus
+;### CTLSHU -> Shuffle an/aus
+;### CTLRMT -> remote control
+
+;--- SOUND-PLAY ---------------------------------------------------------------
+;### SNDPAR -> Angehängten Sound suchen
+;### SNDUNL -> unloads extra data of current song
+;### SNDLOD -> Lädt und initialisiert Modul
+;### SNDCHN -> get number of channels of loaded module
+;### SNDINI -> Initialisiert geladenes Modul eines bestimmten Types
+;### SNDRES -> Deaktiviert die Soundausgabe
+;### SNDPLY -> Startet Abspielen
+;### SNDPAU -> Hält Abspielen an
+;### SNDSTP -> Stoppt Song und setzt Position an den Anfang
+;### SNDPOS -> Setzt Song-Position
+;### SNDVOL -> Setzt Song-Volume
+;### SNDVAL -> Holt Frequenz und Volume
+;### PRGTIM -> Programm-Timer, spielt Sound ab
+
+;--- SUB-ROUTINEN -------------------------------------------------------------
+;### SYSINI -> Computer-Typ abhängige Initialisierung
+;### CFGINI -> Config übernehmen
+;### SPRCNV -> Konvertiert Sprite vom CPC ins MSX Format
+;### GFXINI -> Bitmap init
+;### MSGGET -> Message für Programm abholen
+;### MSGSND -> Message an Desktop-Prozess senden
+;### CLCMUL -> Multipliziert zwei Werte (24bit)
+;### CLCDIV -> Dividiert zwei Werte (24bit)
+;### CLCD32 -> Dividiert zwei Werte (32bit)
+;### CLCM16 -> Multipliziert zwei Werte (16bit)
+;### CLCD16 -> Dividiert zwei Werte (16bit)
+;### STRLEN -> Ermittelt Länge eines Strings
+;### STRCMP -> Vergleicht zwei Strings
+;### DIV168 -> A=HL/E, H=HL mod E
+;### CLCNUM -> Wandelt 16Bit-Zahl in ASCII-String um (mit 0 abgeschlossen)
+;### CLCDZ3 -> Rechnet Word in drei Dezimalziffern um
+;### CLCDEZ -> Rechnet Byte in zwei Dezimalziffern um
+;### CLCUCS -> Wandelt Klein- in Großbuchstaben um
+;### CLCLCS -> Wandelt Groß- in Kleinbuchstaben um
+
+;---
 
 
 ;==============================================================================
@@ -60,6 +200,9 @@ diawin      db -1   ;Nummer des Dialog-Fensters
 
 prgprz  call SySystem_HLPINI
         call prgdbl
+        call bmplod             ;load extended bitmaps
+        call bmpset             ;set/patch extended bitmaps
+
         ld a,(App_PrcID)
         ld (prgwindat+windatprz),a
         ld (prglstdat+windatprz),a
@@ -67,7 +210,18 @@ prgprz  call SySystem_HLPINI
         ld (prgwinmix+windatprz),a
         ld (prgwinprf+windatprz),a
 
-        call sysini             ;Computer-Typ abhängige Initialisierung
+        call SySound_SNDINI     ;check for sound daemon
+        jr c,prgprz3
+        ld (hrddem),a           ;-> yes, use volume settings and opl4 parameters
+        ld a,h
+        ld (op4_64kbnk),a
+        ld a,b
+        ld (sndset_vol),a
+        call ctlvup0            ;set volslider-position main
+        call winslh0
+        call volupd2            ;set volslider-position mixer
+
+prgprz3 call sysini             ;Computer-Typ abhängige Initialisierung, sound device detection
         call gfxini             ;Grafiken aus "Skin" kopieren
         call lstini
         call lstupd0
@@ -89,7 +243,6 @@ prgprz  call SySystem_HLPINI
         call SyKernel_MTADDT
         jp c,prgend
         ld (prgprztab+0),a
-
         jp sndpar
 
 prgprz0 call msgget
@@ -99,6 +252,8 @@ prgprz0 call msgget
         db #dd:cp h
         jp z,ctlinc             ;*** Message vom eigenen Timer bekommen
         ld a,b
+        cp "R"                  ;remote control (from sound daemon)
+        jp z,ctlrmt
         cp MSC_GEN_FOCUS        ;*** Application soll sich Focus nehmen
         jp z,prgfoc0
         cp MSR_DSK_WFOCUS
@@ -259,6 +414,7 @@ prgkey2 inc hl
 ;### PRGEND -> Programm beenden
 prgend  call sndstp
         call mp3del
+        call dmnfre
         ld hl,(App_BegCode+prgpstnum)
         call SySystem_PRGEND
 prgend0 rst #30
@@ -1422,18 +1578,21 @@ mixswt1 ld hl,prgwinmen4+2+8
 mixvol  ld hl,sndset_vol
         call mixclk
         call mixvold
-        jp ctlvol4
-mixvold ld a,(sndset_vol)      ;display volume
+        call ctlvup             ;show in main
+        jp volupd0              ;set and send to daemon
+mixvold call mixvole
+        jp mixshw
+mixvole ld a,(sndset_vol)       ;display volume
         ld ix,prgmix_vol*16+prgdatmix
         ld bc,256*prgmix_volb+prgmix_vol
-        jp mixshw
+        ret
 
 ;### MIXBAS -> bass clicked
 mixbas  ld hl,sndset_bas
         call mixclk
         call mixbasd
         jr mixtre0
-mixbasd ld a,(sndset_bas)      ;display bass
+mixbasd ld a,(sndset_bas)       ;display bass
         ld ix,prgmix_bas*16+prgdatmix
         ld bc,256*prgmix_basb+prgmix_bas
         jp mixshw
@@ -1444,7 +1603,7 @@ mixtre  ld hl,sndset_tre
         call mixtred
 mixtre0 call mixset
         jp prgprz0
-mixtred ld a,(sndset_tre)      ;display treble
+mixtred ld a,(sndset_tre)       ;display treble
         ld ix,prgmix_tre*16+prgdatmix
         ld bc,256*prgmix_treb+prgmix_tre
         jp mixshw
@@ -1521,11 +1680,13 @@ mixclk2 ld a,l
 
 ;### MIXSHW -> shows vertical mixer setting
 ;### Input      A=value, IX=record, B=background control, C=slider control
-mixshw  cpl
+mixshw  call mixshw0
+        jp winslv
+mixshw0 cpl
         call winslp
         ld de,11
         add hl,de
-        jp winslv
+        ret
 
 ;### MIXSET -> Setzt erweiterte Mixer-Einstellungen
 mixset  ld a,(sndset_bas)
@@ -1666,8 +1827,7 @@ winslv  push bc
         ld e,b
         ld c,(ix+8)
         ld b,(ix+9)     ;bc=old y
-        ld (ix+8),l
-        ld (ix+9),h     ;set new y
+        call winslv0
         ld l,(ix+6)
         ld h,(ix+7)     ;hl=x
         ld ix,8
@@ -1678,6 +1838,9 @@ winslv  push bc
         pop af
         pop de
         jp SyDesktop_WINDIN
+winslv0 ld (ix+8),l
+        ld (ix+9),h     ;set new y
+        ret
 
 ;### WINSLP -> calculates slider position
 ;### Input      A=value
@@ -1693,13 +1856,15 @@ winslp1 ld l,h
         ret
 
 ;### CTLVUP -> Volume anzeigen
-ctlvup  ld a,(sndset_vol)
+ctlvup  call ctlvup0
+        jp winslh
+ctlvup0 ld a,(sndset_vol)
         call winslp
         ld de,96
         add hl,de
         ld ix,prgwin_vol*16+prgwinobj
         ld bc,256*prgwin_barv+prgwin_vol
-        jp winslh
+        ret
 
 ;### CTLTUP -> Spielzeit anzeigen
 ctltup  ld a,(ctltim+0)
@@ -1884,15 +2049,40 @@ ctlvol1 ld b,l
         jr nz,ctlvol2
         ld l,255
 ctlvol2 ld a,l
-ctlvol3 ld (sndset_vol),a
-        ld a,(mixwin)
+ctlvol3 ld (sndset_vol),a   ;** set new volume
+        call volupd         ;show in displays
+        jr volupd0          ;set and send to daemon
+
+;### VOLUPD -> update volume
+volupd  ld a,(mixwin)
         inc a
-        jr z,ctlvol4
-        call mixvold
-ctlvol4 ld a,(sndset_vol)
-        call sndvol
-        call ctlvup
+        push af
+        call nz,mixvold     ;vis -> update and show in mixer
+        pop af
+        call z,volupd2      ;unvis -> only update in mixer
+        jp ctlvup           ;show in mainwindow
+volupd0 ld a,(SySound_PrcID)
+        or a
+        jr z,volupd1
+        ld a,2
+        ld hl,(sndset_vol)  ;send to daemon
+        call SySound_RMTCTR
+volupd1 ld a,(sndset_vol)
+        call sndvol         ;set for songs
         jp prgprz0
+volupd2 call mixvole        ;update in mixer
+        call mixshw0
+        jp winslv0
+
+;### CTLRMT -> Remote control
+;### Input      (App_MsgBuf+1)=type (1=volume), (App_MsgBuf+2)=new volume
+ctlrmt  ld a,(App_MsgBuf+1)
+        cp 1
+        jp nz,prgprz0
+        ld a,(App_MsgBuf+2)     ;new volume
+        ld (sndset_vol),a
+        call volupd             ;show in displays
+        jr volupd1              ;set volume
 
 ;### CTLREW -> Ein Lied zurück
 ctlrew  ld a,(ctlshuf)
@@ -1984,19 +2174,18 @@ ctlshu  ld hl,ctlshuf
         ld e,prgwin_shu
         jr ctlrep1
 
-
 ;==============================================================================
 ;### SOUND-PLAY ###############################################################
 ;==============================================================================
 
 plugins_beg
+READ "App-SymAmp-Drivers.asm"
 READ "App-SymAmp-SKM.asm"
 READ "App-SymAmp-ST2.asm"
 READ "App-SymAmp-PT3.asm"
 READ "App-SymAmp-MP3.asm"
 READ "App-SymAmp-MOD.asm"
 READ "App-SymAmp-SA2.asm"
-READ "App-SymAmp-Drivers.asm"
 list
 plugins_len equ $-plugins_beg
 nolist
@@ -2056,6 +2245,7 @@ sndlod  xor a
         call sndpau         ;stop current song
         call sndres
         call mp3del
+        call dmnfre
         call sndlod0
         ld hl,256*":"+"/"
         ld (prgwintxt3),hl
@@ -2107,6 +2297,8 @@ sndlodc push hl
         call strcmp
         pop hl
         jr nz,sndlodd
+        call dwtbeg             ;* stop daemon, if possible
+        jp c,sndlode
         call modlod
         jp c,sndlode
         ld a,4	            ;4=MOD
@@ -2118,6 +2310,8 @@ sndlodd push hl
         call strcmp
         pop hl
         jr nz,sndloda
+        call dwtbeg             ;* stop daemon, if possible
+        jp c,sndlode
         ld a,5	            ;5=SA2
         ld (sndlodt),a
 
@@ -2265,7 +2459,12 @@ sndjmp  dw sksini,sksply,sksstp,skspos,sksvol,sksval
         dw sa2ini,sa2ply,sa2stp,sa2pos,sa2vol,sa2val
 sndinif dw 0        ;Flag, ob gültiger Sound geladen wurde
 
-sndini  ld (snddattyp),a
+sndini  push af
+        ;call dmnini
+        pop bc
+        ret c
+        ld a,b
+        ld (snddattyp),a
         cp 2
         jr z,sndini1        ;mp3 -> no hardware init necessary
         cp 5+1
@@ -2331,13 +2530,15 @@ sndres1 scf
 sndres0 ret
 
 ;### SNDPLY -> Startet Abspielen
-sndply  db #3e:scf
+sndply  call dmnply
+        db #3e:scf
         ld (prgtim),a
         ret
 
 ;### SNDPAU -> Hält Abspielen an
 sndpau  db #3e:or a
         ld (prgtim),a
+        call dmnpau
 sndpau1 jp sndres0          ;### MUTE
 
 ;### SNDSTP -> Stoppt Song und setzt Position an den Anfang
@@ -2456,11 +2657,268 @@ prgtim2 ld a,(prgtimn)      ;Message an Hauptprozess senden
 
 
 ;==============================================================================
+;### SOUND DAEMON COOPERATION #################################################
+;==============================================================================
+
+dmnuse  db 0    ;0=no daemon psg/wavetable usage, 1=psg usage, 2=wavetable usage
+
+;### DMNPLY -> sound daemon usage begin with song-play
+;### Input      (snddattyp)=Typ (0=Starkos, 1=SoundTrakker, 2=MP3, 3=PT3, 4=MOD, 5=SA2)
+;### Destroyed  AF,BC,DE,HL,IX,IY
+dmnply  ld a,(snddattyp)
+        cp 2
+        ret z
+        cp 4
+        jr c,dpsbeg
+        ret
+
+;### DMNPAU -> sound daemon usage stop with song-pause
+;### Destroyed  AF,BC,DE,HL,IX,IY
+dmnpau  ld a,(dmnuse)
+        dec a
+        ret nz
+        ld a,16
+        jr dpsbeg0
+
+;### DMNFRE -> sound daemon usage stop with song-unload
+;### Destroyed  AF,BC,DE,HL,IX,IY
+dmnfre  ld a,(dmnuse)
+        cp 2
+        ret c
+        ld a,17
+        jr dpsbeg0
+
+;### DPSBEG -> sound daemon psg usage begin
+;### Output     CF=0
+;### Destroyed  AF,BC,DE,HL,IX,IY
+dpsbeg  ld a,(hrddem)
+        or a
+        bit 0,a
+        ret z                   ;no psg-daemon -> ignore daemon
+        ld a,1
+        ld (dmnuse),a
+        xor a
+dpsbeg0 jp SySound_SNDCOO
+
+;### DWTBEG -> sound daemon wavetable usage begin
+;### Output     CF=0 -> ok (mt_load2/mt_load3 updated), CF=1 -> error, A=4, wavetable hardware in use
+;### Destroyed  AF,BC,DE,HL,IX,IY
+dwtbeg  ld a,(hrddem)
+        or a
+        bit 1,a
+        ret z                   ;no wavetable-daemon -> ignore daemon
+        ld a,1+00
+        call SySound_SNDCOO     ;cf=0 -> de,hl=startofs
+        ld a,4
+        ret c
+        ld a,#20
+        add e
+        ld (mt_load3+1),a
+        ld a,l:ld l,h:ld h,a
+        ld (mt_load2+1),hl
+        ld a,2
+        ld (dmnuse),a
+        or a
+        ret
+
+
+;==============================================================================
+;### EXTERNAL BITMAPS #########################################################
+;==============================================================================
+
+;### PRGFIL -> Generates datafile path
+datnam  db "symamp.dat":datnam0
+
+datpth  dw 0
+datfil  dw 0
+datend  dw 0
+
+prgfil  ld hl,(App_BegCode)
+        ld de,App_BegCode
+        dec h
+        add hl,de           ;HL = CodeEnd = path
+        ld (datpth),hl
+        ld e,l
+        ld d,h              ;DE=HL
+        ld b,255
+prgfil1 ld a,(hl)           ;search end of path
+        or a
+        jr z,prgfil2
+        cp " "
+        jr z,prgfil2
+        inc hl
+        djnz prgfil1
+        jr prgfil4
+        ld a,255
+        sub b
+        jr z,prgfil4
+        ld b,a
+prgfil2 dec hl              ;search start of filename
+        ld a,(hl)
+        cp "/"
+        jr z,prgfil3
+        cp "\"
+        jr z,prgfil3
+        cp ":"
+        jr z,prgfil3
+        djnz prgfil2
+        jr prgfil4
+prgfil3 inc hl
+        ex de,hl
+prgfil4 ld (datfil),de
+        ld hl,datnam        ;replace application filename with config filename
+        ld bc,datnam0-datnam
+        ldir
+        ex de,hl
+        ld a,(hl)
+        ld (datend+2),a
+        ld (hl),0
+        ld (datend),hl
+        ret
+
+
+bmpdato ds 64   ;offset table (max 64bytes/32 entries)
+
+bmpdatb equ 0*5+prgmemtab+0     ;bitmap ram bank
+bmpdata equ 0*5+prgmemtab+1     ;bitmap start address
+bmpdatl equ 0*5+prgmemtab+3     ;bitmap length
+
+
+
+;### BMPSET -> links external bitmaps into control records
+bmpsett
+db xid_frame_l  :dw 3+gfx_frame_l
+db xid_frame_r  :dw 3+gfx_frame_r
+db xid_kbpskhz  :dw 3+gfx_kbpskhz
+db xid_sldpos   :dw 3+gfx_sldpos
+db xid_sldvol   :dw 3+gfx_sldvol
+db xid_open     :dw 3+gfx_open
+db xid_mixer    :dw 3+gfx_mixer
+db xid_control  :dw 3+gfx_control
+db xid_stereo   :dw 3+gfx_stereo
+db xid_titmix   :dw 3+gfx_titmix
+db xid_sldpan   :dw 3+gfx_sldpan
+db xid_sldmix   :dw 3+gfx_sldmix1
+db xid_sldmix   :dw 3+gfx_sldmix2
+db xid_sldmix   :dw 3+gfx_sldmix3
+db 0
+
+bmpset  ld hl,bmpsett
+bmpset1 ld a,(hl)
+        or a
+        ret z
+        add a
+        ld c,a
+        ld b,0
+        inc hl
+        ld e,(hl):inc hl
+        ld d,(hl):inc hl
+        push hl
+        ld a,(bmpdatb)
+        ld (de),a
+        inc de
+        ld hl,bmpdato-2
+        add hl,bc
+        ldi:ldi
+        pop hl
+        jr bmpset1
+
+
+;### BMPLOD -> loads external bitmaps
+bmplodl dw 0    ;entry table size (bit15=crunch flag)
+        dw 0    ;bitmap size
+
+bmplod  call prgfil             ;generate path
+        ld hl,(datpth)
+        ld ix,(App_BnkNum-1)
+        call SyFile_FILOPN      ;open data file
+        jp c,bmplod0
+        ld hl,bmplodl
+        ld de,(App_BnkNum)
+        ld bc,4
+        push af
+        call SyFile_FILINP      ;load length information
+        jp c,bmplode
+        pop af
+        ld hl,bmpdato
+        ld de,(App_BnkNum)
+        ld bc,(bmplodl+0)
+        res 7,b
+        push af
+        call SyFile_FILINP      ;load bitmap table
+        jr c,bmplode
+        xor a
+        ld e,1
+        ld bc,(bmplodl+2)
+        ld (bmpdatl),bc
+        push bc
+        rst #20:dw jmp_memget   ;reserve bitmap memory
+        pop bc
+        jr c,bmplode
+        ld (bmpdatb),a          ;register additional memory
+        ld (bmpdata),hl
+        ld de,(bmplodl+0)       ;d7=crunch flag
+        ld e,a
+        pop af
+        push af
+        rl d
+        call SyFile_FILCPR      ;load bitmap data
+        jr c,bmplode
+        jr nz,bmplode
+        pop af
+        call SyFile_FILCLO      ;close data file
+        ld a,(datend+2)
+        ld hl,(datend)
+        ld (hl),a
+
+        ld a,(bmplodl+0)        ;relocate bitmap headers
+        srl a
+        ld b,a
+        ld a,(bmpdatb)
+        ld hl,bmpdato
+bmplod1 push bc
+        ld e,(hl):inc hl
+        ld d,(hl):dec hl
+        ex de,hl
+        ld bc,(bmpdata)
+        add hl,bc
+        ex de,hl
+        ld (hl),e:inc hl
+        ld (hl),d:inc hl
+        push hl
+        ex de,hl
+        inc hl:inc hl:inc hl
+        call bmplod2
+        call bmplod2
+        pop hl
+        pop bc
+        djnz bmplod1
+        ret
+
+bmplod2 rst #20:dw jmp_bnkrwd
+        ex de,hl
+        ld hl,(bmpdata)
+        add hl,bc
+        ld c,l
+        ld b,h
+        ex de,hl
+        dec hl:dec hl
+        rst #20:dw jmp_bnkwwd
+        ret
+
+bmplode pop af
+        call SyFile_FILCLO
+bmplod0 ;...show error
+        jp prgend
+
+
+;==============================================================================
 ;### SUB-ROUTINEN #############################################################
 ;==============================================================================
 
 hrdbas  db 0    ;0=N/A, 1=CPC, 2=MSX, 3=PCW, 4=EP, 5=NXT
 hrdext  dw 0    ;b0=PSG, b1=MP3, b2=Playcity, b3=Darky, b4=OPL4
+hrddem  db 0    ;+1/+2=psg/opl4 daemon existing
 
 ;### SYSINI -> Computer-Typ abhängige Initialisierung
 sysini  ld hl,jmp_sysinf        ;*** Computer-Typ holen
@@ -2602,7 +3060,7 @@ gfxini2 ld hl,gfx_analyz0
         ret
 
 ;### MSGGET -> Message für Programm abholen
-;### Ausgabe    CF=0 -> keine Message vorhanden, CF=1 -> IXH=Absender, (recmsgb)=Message, A=(recmsgb+0), IY=recmsgb
+;### Ausgabe    CF=0 -> keine Message vorhanden, CF=1 -> IXH=Absender, (recmsgb)=Message, A=(App_MsgBuf+0), IY=App_MsgBuf
 ;### Veraendert 
 msgget  db #dd:ld h,-1
 msgget1 ld a,(App_PrcID)
@@ -2944,6 +3402,21 @@ clclcs  cp "A"
         add "a"-"A"
         ret
 
+;a=number -> (DE)=hexdigits, DE=DE+2
+;c destroyed
+hexplt6 ld c,a
+        rlca:rlca:rlca:rlca
+        call hexplt7
+        ld a,c
+hexplt7 and 15
+        add "0"
+        cp "9"+1
+        jr c,hexplt8
+        add "A"-"9"-1
+hexplt8 ld (de),a
+        inc de
+        ret
+
 
 ;==============================================================================
 ;### LIBRARY-ROUTINEN #########################################################
@@ -3020,8 +3493,8 @@ splfil  ds 256+1
 
 
 ;### Verschiedenes
-prgmsginf1  db "SymAmp 4.0 (build "
-read "..\..\..\..\SVN-Main\trunk\build.asm"
+prgmsginf1  db "SymAmp 4.1 (build "
+read "..\..\..\SRC-Main\build.asm"
             db ")",0
 
 prgmsginf2  db " by Prodatron/SymbiosiS et al",0
@@ -3040,31 +3513,48 @@ prgtxtno    db "No",0
 
 ;### Menues
 prgwinmentx1 db "File",0
-prgwinmen1tx1 db "Play file...",0
-prgwinmen1tx2 db "View file info",0
-prgwinmen1tx3 db "Open playlist",0
-prgwinmen1tx4 db "Save playlist",0
-prgwinmen1tx5 db "Exit",0
+prgwinmen1tx1 db 6,128,-1:dw menicn_fileplay    +1:db " Play file...",0
+prgwinmen1tx2 db 6,128,-1:dw menicn_fileinfo    +1:db " View file info",0
+prgwinmen1tx3 db 6,128,-1:dw menicn_fileopen    +1:db " Open playlist",0
+prgwinmen1tx4 db 6,128,-1:dw menicn_filesave    +1:db " Save playlist",0
+prgwinmen1tx5 db 6,128,-1:dw menicn_quit        +1:db " Exit",0
+menicn_fileplay     db 4,8,7:dw $+7,$+4,28:db 5: db #66,#61,#16,#66, #66,#61,#11,#66, #66,#61,#61,#66, #61,#11,#66,#66, #18,#81,#69,#96, #1e,#e1,#69,#99, #61,#16,#69,#96
+menicn_fileinfo     db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#66, #66,#66,#66,#66, #16,#ff,#1f,#ff, #66,#66,#66,#66, #16,#ff,#ff,#1f, #66,#66,#66,#66, #16,#ff,#f1,#ff
+menicn_fileopen     db 4,8,7:dw $+7,$+4,28:db 5: db #61,#16,#66,#66, #18,#81,#16,#66, #18,#88,#77,#77, #18,#87,#22,#27, #18,#72,#22,#76, #17,#22,#27,#66, #77,#77,#76,#66
+menicn_filesave     db 4,8,7:dw $+7,$+4,28:db 5: db #11,#11,#11,#11, #1f,#ee,#ee,#f1, #1f,#ee,#ee,#f1, #1f,#ff,#ff,#f1, #1f,#11,#c1,#f1, #1f,#11,#c1,#f1, #61,#11,#11,#11
+menicn_quit         db 4,8,7:dw $+7,$+4,28:db 5: db #11,#16,#16,#66, #14,#46,#11,#66, #14,#11,#1e,#16, #14,#1e,#ee,#e1, #14,#11,#1e,#16, #14,#46,#11,#66, #11,#16,#16,#66
 
 prgwinmentx2 db "Play",0
-prgwinmen2tx1 db "Previous",0
-prgwinmen2tx2 db "Play",0
-prgwinmen2tx3 db "Pause",0
-prgwinmen2tx4 db "Stop",0
-prgwinmen2tx5 db "Next",0
-prgwinmen2tx6 db "Repeat",0
-prgwinmen2tx7 db "Shuffle",0
+prgwinmen2tx1 db 6,128,-1:dw menicn_plyprev     +1:db " Previous",0
+prgwinmen2tx2 db 6,128,-1:dw menicn_plyplay     +1:db " Play",0
+prgwinmen2tx3 db 6,128,-1:dw menicn_plypaus     +1:db " Pause",0
+prgwinmen2tx4 db 6,128,-1:dw menicn_plystop     +1:db " Stop",0
+prgwinmen2tx5 db 6,128,-1:dw menicn_plynext     +1:db " Next",0
+prgwinmen2tx6 db 6,128,-1:dw menicn_plyrept     +1:db " Repeat",0
+prgwinmen2tx7 db 6,128,-1:dw menicn_plyshuf     +1:db " Shuffle",0
+menicn_plyprev      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#66, #77,#66,#67,#76, #77,#66,#77,#76, #77,#67,#77,#76, #77,#66,#77,#76, #77,#66,#67,#76, #66,#66,#66,#66
+menicn_plyplay      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#66, #69,#99,#66,#66, #69,#99,#96,#66, #69,#99,#99,#66, #69,#99,#96,#66, #69,#99,#66,#66, #66,#66,#66,#66
+menicn_plypaus      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#66, #55,#56,#55,#56, #55,#56,#55,#56, #55,#56,#55,#56, #55,#56,#55,#56, #55,#56,#55,#56, #66,#66,#66,#66
+menicn_plystop      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#66, #6f,#ff,#ff,#66, #6f,#ff,#ff,#66, #6f,#ff,#ff,#66, #6f,#ff,#ff,#66, #6f,#ff,#ff,#66, #66,#66,#66,#66
+menicn_plynext      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#66, #77,#66,#67,#76, #77,#76,#67,#76, #77,#77,#67,#76, #77,#76,#67,#76, #77,#66,#67,#76, #66,#66,#66,#66
+menicn_plyrept      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#16,#66,#66, #66,#11,#66,#66, #11,#11,#16,#11, #16,#11,#66,#61, #16,#16,#66,#61, #16,#66,#66,#61, #11,#11,#11,#11
+menicn_plyshuf      db 4,8,7:dw $+7,$+4,28:db 5: db #66,#66,#66,#16, #77,#66,#61,#11, #66,#76,#16,#16, #66,#61,#66,#66, #66,#16,#76,#76, #11,#66,#67,#77, #66,#66,#66,#76
 
 prgwinmentx3 db "Options",0
-prgwinmen3tx1 db "Hardware settings",0
+prgwinmen3tx1 db 6,128,-1:dw menicn_settings    +1:db " Hardware settings",0
+menicn_settings     db 4,8,7:dw $+7,$+4,28:db 5: db #66,#6c,#66,#66, #6c,#6c,#6c,#66, #6f,#cd,#cf,#66, #cc,#c1,#cc,#c6, #ff,#cc,#cf,#f6, #6c,#fc,#fc,#66, #6f,#6c,#6f,#66
 
 prgwinmentx4 db "View",0
-prgwinmen4tx1 db "Playlist",0
-prgwinmen4tx2 db "Equalizer",0
+prgwinmen4tx1 db 6,128,-1:dw menicn_vwplaylist  +1:db " Playlist",0
+prgwinmen4tx2 db 6,128,-1:dw menicn_vwequaliz   +1:db " Equalizer",0
+menicn_vwplaylist   db 4,8,7:dw $+7,$+4,28:db 5: db #ff,#ff,#ff,#ff, #88,#88,#88,#86, #ff,#ff,#ff,#f6, #88,#88,#86,#66, #ff,#ff,#f6,#66, #88,#88,#88,#66, #ff,#ff,#ff,#66
+menicn_vwequaliz    db 4,8,7:dw $+7,$+4,28:db 5: db #00,#10,#01,#00, #00,#10,#01,#00, #07,#77,#01,#00, #00,#10,#01,#00, #00,#10,#77,#70, #00,#10,#01,#00, #00,#10,#01,#00
 
 prgwinmentx5 db "?",0
-prgwinmen5tx1 db "Index",0
-prgwinmen5tx2 db "About SymAmp...",0
+prgwinmen5tx1 db 6,128,-1:dw menicn_help        +1:db " Help topics",0
+prgwinmen5tx2 db 6,128,-1:dw menicn_about       +1:db " About SymAmp...",0
+menicn_help         db 4,8,7:dw $+7,$+4,28:db 5: db #66,#1f,#f1,#66, #61,#fc,#cf,#16, #1f,#ff,#fc,#f1, #ff,#fc,#cc,#f1, #ff,#ff,#ff,#18, #1f,#cf,#f1,#81, #61,#ff,#18,#16
+menicn_about        db 4,8,7:dw $+7,$+4,28:db 5: db #66,#10,#07,#66, #66,#10,#07,#66, #66,#66,#66,#66, #61,#00,#07,#66, #66,#10,#07,#66, #66,#10,#07,#66, #61,#00,#00,#76
 
 prglstmentx1    db "+Add",0
 prglstmentx2    db "-Rem",0
@@ -3072,15 +3562,27 @@ prglstmentx3    db "=Sel",0
 prglstmentx4    db "*Misc",0
 prglstmentx5    db "Up",0
 prglstmentx6    db "Down",0
-prglstmen1tx1   db "Add file...",0
-prglstmen1tx2   db "Add folder...",0
-prglstmen2tx1   db "Remove selected",0
-prglstmen2tx2   db "Remove all",0
-prglstmen3tx1   db "Select all",0
-prglstmen3tx2   db "Select none",0
-prglstmen3tx3   db "Invert selection",0
-prglstmen4tx1   db "File info",0
-prglstmen4tx2   db "Sort list",0
+
+prglstmen1tx1   db 6,128,-1:dw menicn_lstaddfile  +1:db " Add file...",0
+prglstmen1tx2   db 6,128,-1:dw menicn_lstaddfold  +1:db " Add folder...",0
+menicn_lstaddfile   db 4,8,7:dw $+7,$+4,28:db 5: db #66,#61,#16,#66, #66,#61,#11,#66, #66,#61,#61,#66, #61,#11,#66,#66, #18,#81,#66,#76, #1e,#e1,#67,#77, #61,#16,#66,#76
+menicn_lstaddfold   db 4,8,7:dw $+7,$+4,28:db 5: db #6d,#dd,#66,#66, #d0,#00,#dd,#d6, #d0,#07,#00,#01, #d0,#77,#70,#01, #d0,#07,#00,#01, #d0,#00,#00,#01, #61,#11,#11,#16
+
+prglstmen2tx1   db 6,128,-1:dw menicn_lstremsel   +1:db " Remove selected",0
+prglstmen2tx2   db 6,128,-1:dw menicn_delete      +1:db " Remove all",0
+menicn_lstremsel    db 4,8,7:dw $+7,$+4,28:db 5: db #66,#61,#16,#66, #66,#61,#11,#66, #66,#61,#61,#66, #61,#11,#66,#66, #18,#81,#6f,#6f, #1e,#e1,#66,#f6, #61,#16,#6f,#6f
+menicn_delete       db 4,8,7:dw $+7,$+4,28:db 5: db #ff,#66,#66,#ff, #6f,#f6,#6f,#f6, #66,#ff,#ff,#66, #66,#6f,#f6,#66, #66,#ff,#ff,#66, #6f,#f6,#6f,#f6, #ff,#66,#66,#ff
+
+prglstmen3tx1   db 6,128,-1:dw menicn_lstselall   +1:db " Select all",0
+prglstmen3tx2   db 6,128,-1:dw menicn_lstselnon   +1:db " Select none",0
+prglstmen3tx3   db 6,128,-1:dw menicn_lstselinv   +1:db " Invert selection",0
+menicn_lstselall    db 4,8,7:dw $+7,$+4,28:db 5: db #11,#11,#11,#11, #77,#77,#77,#76, #11,#11,#11,#16, #77,#77,#76,#66, #11,#11,#16,#66, #77,#77,#77,#66, #11,#11,#11,#66
+menicn_lstselnon    db 4,8,7:dw $+7,$+4,28:db 5: db #ff,#ff,#ff,#ff, #88,#88,#88,#86, #ff,#ff,#ff,#f6, #88,#88,#86,#66, #ff,#ff,#f6,#66, #88,#88,#88,#66, #ff,#ff,#ff,#66
+menicn_lstselinv    db 4,8,7:dw $+7,$+4,28:db 5: db #11,#11,#11,#11, #77,#77,#77,786, #ff,#ff,#ff,#f6, #88,#88,#86,#66, #11,#11,#16,#66, #77,#77,#77,#66, #ff,#ff,#ff,#66
+
+prglstmen4tx1   db 6,128,-1:dw menicn_fileinfo    +1:db " File info",0
+prglstmen4tx2   db 6,128,-1:dw menicn_lstsort     +1:db " Sort list",0
+menicn_lstsort      db 4,8,7:dw $+7,$+4,28:db 5: db #67,#76,#66,#66, #76,#67,#66,#66, #77,#77,#61,#11, #76,#67,#66,#61, #76,#67,#66,#16, #66,#66,#61,#66, #66,#66,#61,#11
 
 prgwintxt1  db "/00:00/"
 prgwintxt0  db 0
@@ -3148,15 +3650,19 @@ txterrlod3  db "",0
 
 txterrfrm1  db "A required sound device for",0
 txterrfrm2  db "playing this module is not",0
-txterrfrm3  db "available in your system",0
+txterrfrm3  db "available in your system.",0
 
 txterrmem1  db "Not enough memory.",0
 txterrmem2  db "This module requires too much",0
 txterrmem3  db "RAM or wavetable memory.",0
 
+txterrocc1  db "Device is occupied.",0
+txterrocc2  db "The required sound device",0
+txterrocc3  db "is currently in use.",0
+
 txterrunk1  db "Unknown or unsupported file.",0
 txterrunk2  db "SymAmp has no idea what to do",0
-txterrunk3  db "with this sound module.",0
+txterrunk3  db "with this bunch of bytes.",0
 
 txterrlfp1  db "Too many directory pathes.",0
 txterrlfp2  db "Please clear the songlist to",0
@@ -3207,13 +3713,13 @@ prgmsginf  dw prgmsginf1,4*1+2,prgmsginf2,4*1+2,prgmsginf3,4*1+2,0,prgicnbig,prg
 prgwindat dw #3501,0,171,104,148,62,0,0,148,62,148,62,148,62,prgicnsml,prgwintit,0,prgwinmen,prgwingrp,0,0:ds 136+14
 
 prgwinmen  dw 5, 1+4,prgwinmentx1,prgwinmen1,0, 1+4,prgwinmentx2,prgwinmen2,0, 1+4,prgwinmentx3,prgwinmen3,0, 1+4,prgwinmentx4,prgwinmen4,0, 1+4,prgwinmentx5,prgwinmen5,0
-prgwinmen1 dw 7, 1,prgwinmen1tx1,ctlopn,0, 1,prgwinmen1tx2,prpsng,0, 1+8,0,0,0, 1,prgwinmen1tx3,lstlod,0, 1,prgwinmen1tx4,lstsav,0, 1+8,0,0,0, 1,prgwinmen1tx5,prgend,0
-prgwinmen2 dw 8, 1,prgwinmen2tx1,ctlrew,0, 1,prgwinmen2tx2,ctlply,0, 1,prgwinmen2tx3,ctlpau,0, 1,prgwinmen2tx4,ctlstp,0, 1,prgwinmen2tx5,ctlffw,0, 1+8,0,0,0
-prgwinmen2a   dw 1,prgwinmen2tx6,ctlrep,0
-prgwinmen2b   dw 1,prgwinmen2tx7,ctlshu,0
-prgwinmen3 dw 1, 1,prgwinmen3tx1,prfopn,0
-prgwinmen4 dw 2, 1,prgwinmen4tx1,lstswt,0, 1,prgwinmen4tx2,mixswt,0
-prgwinmen5 dw 3, 1,prgwinmen5tx1,prghlp,0, 1+8,0,0,0, 1,prgwinmen5tx2,prginf,0
+prgwinmen1 dw 7, 17,prgwinmen1tx1,ctlopn,0, 17,prgwinmen1tx2,prpsng,0, 1+8,0,0,0, 17,prgwinmen1tx3,lstlod,0, 17,prgwinmen1tx4,lstsav,0, 1+8,0,0,0, 17,prgwinmen1tx5,prgend,0
+prgwinmen2 dw 8, 17,prgwinmen2tx1,ctlrew,0, 17,prgwinmen2tx2,ctlply,0, 17,prgwinmen2tx3,ctlpau,0, 17,prgwinmen2tx4,ctlstp,0, 17,prgwinmen2tx5,ctlffw,0, 1+8,0,0,0
+prgwinmen2a   dw 17,prgwinmen2tx6,ctlrep,0
+prgwinmen2b   dw 17,prgwinmen2tx7,ctlshu,0
+prgwinmen3 dw 1, 17,prgwinmen3tx1,prfopn,0
+prgwinmen4 dw 2, 17,prgwinmen4tx1,lstswt,0, 17,prgwinmen4tx2,mixswt,0
+prgwinmen5 dw 3, 17,prgwinmen5tx1,prghlp,0, 1+8,0,0,0, 17,prgwinmen5tx2,prginf,0
 
 prgwingrp db 41,0:dw prgwinobj,0,0,0,0,0,0
 prgwinobj
@@ -3221,22 +3727,30 @@ dw     00,255*256+00,128+6    ,0,0,10000,10000,0    ;00=background
 dw     00,255*256+10,gfx_edge_ul,  0, 0,  4, 3,0    ;01=edge ul
 dw     00,255*256+10,gfx_edge_ur,144, 0,  4, 3,0    ;02=edge ur
 dw     00,255*256+10,gfx_edge_dl,  0,59,  4, 3,0    ;03=edge dl
+gfx_frame_l
 dw     00,255*256+10,gfx_frame_l,  4, 4,  4,31,0    ;04=frame left
 dw     00,255*256+00,128+7      ,  8, 4,108, 1,0    ;05=frame up
 dw     00,255*256+00,128+1      ,  8, 5,108,29,0    ;06=frame middle
 dw     00,255*256+00,128+8      ,  8,34,108, 1,0    ;07=frame down
+gfx_frame_r
 dw     00,255*256+10,gfx_frame_r,116, 4, 28,31,0    ;08=frame right
+gfx_kbpskhz
 dw     00,255*256+10,gfx_kbpskhz, 44, 8, 36,14,0    ;09=kbps/khz
 dw     00,255*256+00,128+3      ,  7,25,112, 8,0    ;10=title background
 prgwin_barp equ 11
+gfx_sldpos
 dw     00,255*256+10,gfx_sldpos ,  4,38,124, 6,0    ;11=bar pos
+gfx_open
 dw     00,255*256+10,gfx_open   ,128,36, 16,10,0    ;12=open
+gfx_mixer
 dw     00,255*256+10,gfx_mixer  , 68,47, 28,15,0    ;13=mix left
 dw     00,255*256+00,128+7      , 96,47, 52, 1,0    ;14=mix up
 dw     00,255*256+00,128+8      , 96,48, 52,14,0    ;15=mix middle
 dw     00,255*256+10,gfx_edge_drw,144,59, 4, 3,0    ;16=edge dr
 prgwin_barv equ 17
+gfx_sldvol
 dw     00,255*256+10,gfx_sldvol , 96,52, 48, 6,0    ;17=bar volume
+gfx_control
 dw     00,255*256+10,gfx_control,  4,47, 72,12,0    ;18=controls
 prgwin_basofs equ 19
 
@@ -3285,10 +3799,10 @@ prgwindsc2  dw lstnam,16*8+3+16384+32768
 prglstdat   dw #3701,5,171,0,140,54,0,0,140,162,96,24,10000,10000,prgicnsml,prglsttit,0,prglstmen,prglstgrp,0,0:ds 136+14
 
 prglstmen  dw 6, 1+4,prglstmentx1,prglstmen1,0, 1+4,prglstmentx2,prglstmen2,0, 1+4,prglstmentx3,prglstmen3,0, 1+4,prglstmentx4,prglstmen4,0, 1,prglstmentx5,lsteup,0, 1,prglstmentx6,lstedw,0
-prglstmen1 dw 2, 1,prglstmen1tx1,lstafi,0, 1,prglstmen1tx2,lstadi,0
-prglstmen2 dw 2, 1,prglstmen2tx1,lstrsl,0, 1,prglstmen2tx2,lstral,0
-prglstmen3 dw 3, 1,prglstmen3tx1,lstsal,0, 1,prglstmen3tx2,lstsno,0, 1,prglstmen3tx3,lstsiv,0
-prglstmen4 dw 5, 1,prglstmen4tx1,prplst,0, 1+8,0,0,0, 1,prglstmen4tx2,lstsrt,0, 1,prgwinmen1tx3,lstlod,0, 1,prgwinmen1tx4,lstsav,0
+prglstmen1 dw 2, 17,prglstmen1tx1,lstafi,0, 17,prglstmen1tx2,lstadi,0
+prglstmen2 dw 2, 17,prglstmen2tx1,lstrsl,0, 17,prglstmen2tx2,lstral,0
+prglstmen3 dw 3, 17,prglstmen3tx1,lstsal,0, 17,prglstmen3tx2,lstsno,0, 17,prglstmen3tx3,lstsiv,0
+prglstmen4 dw 5, 17,prglstmen4tx1,prplst,0, 1+8,0,0,0, 17,prglstmen4tx2,lstsrt,0, 17,prgwinmen1tx3,lstlod,0, 17,prgwinmen1tx4,lstsav,0
 
 prglstgrp   db 2,0:dw prglstobj,prglstclc,0,00,0,0,0
 prglstobj
@@ -3400,15 +3914,21 @@ dw     00,255*256+10,gfx_edge_ul,  0, 0,  4, 3,0    ;01=edge ul
 dw     00,255*256+10,gfx_edge_ur, 68, 0,  4, 3,0    ;02=edge ur
 dw     00,255*256+10,gfx_edge_dl,  0,68,  4, 3,0    ;03=edge dl
 dw     00,255*256+10,gfx_edge_dr, 68,68,  4, 3,0    ;04=edge dr
+gfx_titmix
 dw     00,255*256+10,gfx_titmix,   4, 3, 36, 7,0    ;05=mix title
 prgmix_volb equ 6
-dw mixvol,255*256+10,gfx_sldmix,   6,11,  8,48,0    ;06=mix volume
+gfx_sldmix1
+dw mixvol,255*256+10,gfx_sldmix1,  6,11,  8,48,0    ;06=mix volume
 prgmix_basb equ 7
-dw mixbas,255*256+10,gfx_sldmix,  18,11,  8,48,0    ;07=mix bass
+gfx_sldmix2
+dw mixbas,255*256+10,gfx_sldmix2, 18,11,  8,48,0    ;07=mix bass
 prgmix_treb equ 8
-dw mixtre,255*256+10,gfx_sldmix,  30,11,  8,48,0    ;08=mix treble
+gfx_sldmix3
+dw mixtre,255*256+10,gfx_sldmix3, 30,11,  8,48,0    ;08=mix treble
+gfx_stereo
 dw     00,255*256+10,gfx_stereo,  44, 3, 24,55,0    ;09=stereo mode
 prgmix_panb equ 10
+gfx_sldpan
 dw mixpan,255*256+10,gfx_sldpan,   4,61, 64, 7,0    ;10=bar panning
 prgmix_vol equ 11
 dw mixvol,255*256+10,gfx_sld_vert, 6,11,  8,12,0    ;11=slider volume
@@ -3428,11 +3948,13 @@ dw mixsm3,255*256+19,0           ,44,45, 24,13,0    ;20=click spatial stereo
 
 ;### ERROR-FENSTER ############################################################
 
-daterrtab  dw daterrlod,daterrfrm,daterrmem
+daterrtab  dw daterrlod,daterrfrm,daterrmem,daterrocc
 
 daterrlod  dw txterrlod1,4*1+2,txterrlod2,4*1+2,txterrlod3,4*1+2
 daterrfrm  dw txterrfrm1,4*1+2,txterrfrm2,4*1+2,txterrfrm3,4*1+2
 daterrmem  dw txterrmem1,4*1+2,txterrmem2,4*1+2,txterrmem3,4*1+2
+daterrocc  dw txterrocc1,4*1+2,txterrocc2,4*1+2,txterrocc3,4*1+2
+
 daterrunk  dw txterrunk1,4*1+2,txterrunk2,4*1+2,txterrunk3,4*1+2
 
 daterrlfp  dw txterrlfp1,4*1+2,txterrlfp2,4*1+2,txterrlfp3,4*1+2
@@ -3440,7 +3962,7 @@ daterrlfe  dw txterrlfe1,4*1+2,txterrlfe2,4*1+2,txterrlfe3,4*1+2
 
 
 ;### Playlist
-lstnam  db "SYMAMP 4.0",0
+lstnam  db "SYMAMP 4.1",0
         ds 4+31-11
 
 ;--- BEG songlist filedata

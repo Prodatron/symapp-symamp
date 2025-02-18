@@ -7,6 +7,13 @@
 ;@                                                                            @
 ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+;HOWTO
+;------------------------------------------------------------------------------
+;ayRegisterWrite    -> write C to AY-3-8912 register A
+;ayRegisterRead     -> read AY-3-8912 register A, returning the value in A
+;envelopeInterrupt  -> call every 1/50 seconds
+
+
 ;todo
 ;- 64byte alignment more optimized (data start)
 

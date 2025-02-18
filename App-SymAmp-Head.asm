@@ -3,7 +3,7 @@ nolist
 org #1000
 
 WRITE "f:\symbos\apps\symamp.exe"
-READ "..\..\..\..\SVN-Main\trunk\SymbOS-Constants.asm"
+READ "..\..\..\SRC-Main\SymbOS-Constants.asm"
 
 relocate_start
 
@@ -61,7 +61,7 @@ prgmemtab   db "SymExe10"           ;SymbOS-EXE-identifier              POST tab
             dw 0                    ;additional data memory
             dw lstmax*17            ;additional transfer memory
             ds 26                   ;*reserved*
-            db 0,3                  ;required OS version (3.0)
+            db 0,4                  ;required OS version (4.0)
 prgicnsml   db 2,8,8,#10,#E6,#21,#CC,#53,#AC,#B7,#FE,#F7,#DE,#53,#AC,#33,#48,#76,#80
 prgicnbig   db 6,24,24
             db #00,#00,#10,#80,#00,#60,#00,#00,#31,#C8,#00,#A4,#00,#00,#63,#6C,#30,#6C,#00,#00,#C7,#3E,#43,#EC,#00,#10,#8F,#1E,#95,#48,#00,#31,#0F,#3D,#3B,#80,#00,#63,#0F,#E3,#56,#00,#00,#C7,#1E,#CE,#FC,#00
@@ -72,10 +72,10 @@ prgicnbig   db 6,24,24
 ;*** SYSTEM MANAGER LIBRARY USAGE
 use_SySystem_PRGRUN     equ 1   ;Starts an application or opens a document
 use_SySystem_PRGEND     equ 1   ;Stops an application and frees its resources
-use_SySystem_PRGSRV     equ 0   ;Manages shared services or finds applications
+use_SySystem_PRGSRV     equ 1   ;Manages shared services or finds applications
 use_SySystem_SYSWRN     equ 1   ;Opens an info, warning or confirm box
 use_SySystem_SELOPN     equ 1   ;Opens the file selection dialogue
-use_SySystem_HLPOPN	    equ 1   ;HLP file handling
+use_SySystem_HLPOPN     equ 1   ;HLP file handling
 
 ;*** DESKTOP MANAGER LIBRARY USAGE
 use_SyDesktop_WINOPN    equ 1   ;Opens a new window
@@ -136,9 +136,25 @@ use_SyFile_DIRMOV       equ 0   ;Moves a file or sub directory
 use_SyFile_DIRINF       equ 0   ;Returns information about one drive
 use_SyFile_DEVDIR       equ 0   ;Reads the content of a directory (extended)
 
-READ "..\..\..\..\SVN-Main\trunk\Docs-Developer\symbos_lib-SystemManager.asm"
-READ "..\..\..\..\SVN-Main\trunk\Docs-Developer\symbos_lib-DesktopManager.asm"
-READ "..\..\..\..\SVN-Main\trunk\Docs-Developer\symbos_lib-FileManager.asm"
+use_SySound_MUSLOD      equ 0   ;loads and inits music data
+use_SySound_MUSFRE      equ 0   ;removes music data
+use_SySound_MUSRST      equ 0   ;restarts a music
+use_SySound_MUSCON      equ 0   ;continues playing a music
+use_SySound_MUSSTP      equ 0   ;pauses and mutes music
+use_SySound_MUSVOL      equ 0   ;sets music volume
+use_SySound_EFXLOD      equ 0   ;loads and inits effect data
+use_SySound_EFXFRE      equ 0   ;removes effect data
+use_SySound_EFXPLY      equ 0   ;starts playing an effect
+use_SySound_EFXSTP      equ 0   ;stop effects
+use_SySound_SNDCOO      equ 1   ;cooperation with SymAmp/3rd party sound players
+use_SySound_RMTCTR      equ 1   ;remote control
+use_SySound_RMTACT      equ 0   ;activates remote playing
+use_SySound_RMTDCT      equ 0   ;deactivates remote playing
+
+READ "..\..\..\SRC-Main\Docs-Developer\symbos_lib-SystemManager.asm"
+READ "..\..\..\SRC-Main\Docs-Developer\symbos_lib-DesktopManager.asm"
+READ "..\..\..\SRC-Main\Docs-Developer\symbos_lib-FileManager.asm"
+READ "..\..\..\SRC-Main\Docs-Developer\symbos_lib-SoundDaemon.asm"
 READ "App-SymAmp.asm"
 
 App_EndTrns

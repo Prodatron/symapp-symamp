@@ -587,8 +587,10 @@ PD_LP2
     JR   C,PD_ESAM
     ADD  A,A
     LD   E,A
-    LD   HL,SPCCOMS+#FF20-#2000
+    LD   HL,SPCCOMS ;+#FF20-#2000
     ADD  HL,DE
+ld de,#FF20-#2000
+add hl,de
     LD   E,(HL)
     INC  HL
     LD   D,(HL)
@@ -1401,3 +1403,4 @@ NT_CPC
 
 VAR0END EQU VT_+16              ; TS_Init zeroes from VARS to VAR0END-1
 ; ---------------------------------------------------------------------------
+pt3end
