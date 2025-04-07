@@ -2916,8 +2916,8 @@ bmplod0 ;...show error
 ;### SUB-ROUTINEN #############################################################
 ;==============================================================================
 
-hrdbas  db 0    ;0=N/A, 1=CPC, 2=MSX, 3=PCW, 4=EP, 5=NXT
-hrdext  dw 0    ;b0=PSG, b1=MP3, b2=Playcity, b3=Darky, b4=OPL4
+hrdbas  db 0    ;0=N/A, 1=CPC, 2=MSX, 3=PCW, 4=EP, 5=NXT, 6=SVM
+hrdext  dw 0    ;b0=PSG, b1=MP3, b2=Playcity, b3=Darky, b4=OPL4, b6=ZNX turbosound, b7=SVM dual psg
 hrddem  db 0    ;+1/+2=psg/opl4 daemon existing
 
 ;### SYSINI -> Computer-Typ abhängige Initialisierung
@@ -2943,6 +2943,9 @@ sysini  ld hl,jmp_sysinf        ;*** Computer-Typ holen
         cp 13+1
         ld e,3
         jr c,sysini1    ;12-13 -> 3=pcw psg
+        cp 18
+        ld e,6
+        jr z,sysini1    ;18    -> 6=svm psg
         cp 20
         ld e,5
         jr z,sysini1    ;20    -> 5=nxt psg

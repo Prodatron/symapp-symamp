@@ -32,6 +32,17 @@
 ;### MSXST2 -> sends ST2 register to the MSX-PSG
 ;### MSXPT3 -> sends PT3 registers to the MSX-PSG
 
+;--- SVM PSG ------------------------------------------------------------------
+;### SVMINI -> inits SVM-PSG sound output
+;### SVMREG -> reads PSG register from the SVM-PSG
+;### SVMSKM -> sends SKM register to the SVM-PSG
+;### SVMST2 -> sends ST2 register to the SVM-PSG
+;### SVMPT3 -> sends PT3 registers to the SVM-PSG
+
+;--- SVM DUAL PSG -------------------------------------------------------------
+;### SV2INI -> inits SVM Dual Psg output
+;### SV2PT3 -> sends PT3 registers to the SVM Dual Psg
+
 ;--- PCW PSG ------------------------------------------------------------------
 ;### PCWDET -> tries to detect a dk'tronics AY soundexpansion
 ;### PCWINI -> inits PCW-PSG sound output
@@ -100,7 +111,7 @@ MEND
 ;==============================================================================
 
 ;### HRDDET -> searches for additional sound hardware
-;### Input      (hrdbas)=platform (1=CPC, 2=MSX, 3=PCW, 4=EP, 5=NXT)
+;### Input      (hrdbas)=platform (1=CPC, 2=MSX, 3=PCW, 4=EP, 5=NXT, 6=SVM)
 ;### Output     HL=hardware (b[0]=PSG, b[1]=MP3MSX, b[2]=PlayCity, b[3]=Darky, b[4]=OPL4, b[5]=OPL3, b[6]=TurboSound)
 hrddet  ld a,(hrdbas)
         ld hl,0
@@ -113,6 +124,8 @@ hrddet  ld a,(hrdbas)
         cp 5
         jr c,hrddetd        ;ep
         jr z,hrddete        ;nxt
+        cp 7
+        jr c,hrddetf        ;svm
         ret
 hrddeta call m3cres                 ;*** CPC
         ld hl,1
@@ -165,6 +178,8 @@ hrddet6 push hl
         set 4,l             ;+ opl4
         ret
 hrddete ld hl,1+64                  ;*** NXT
+        ret
+hrddetf ld hl,1+128                 ;*** SVM
         ret
 
 ;### HRDINI -> selects correct hardware and inits it
@@ -220,6 +235,9 @@ hrdini5 ld a,16             ;*** 6CHN psg
         inc a
         bit 6,l
         jr nz,hrdini3       ;zxs turbosound -> use it
+        inc a
+        bit 7,l
+        jr nz,hrdini3       ;svm dual psg   -> use it
         scf
         ret                 ;no 6chn psg hardware available -> exit
 hrdini6 bit 1,l             ;*** MP3
@@ -274,8 +292,8 @@ op3set1 ld a,b
         ret
 
 ;### PSGSET -> patches sound routines for selected PSG sound hardware
-;### Input      A=hardware (1=CPC PSG, 2=MSX PSG, 3=PCW PSG, 4=EP Dave, 5=ZXS PSG,
-;###                        16=CPC PlayCity, 17=MSX Darky, 18=ZXS TurboSound)
+;### Input      A=hardware (1=CPC PSG, 2=MSX PSG, 3=PCW PSG, 4=EP Dave, 5=ZXS PSG, 6=SVM PSG,
+;###                        16=CPC PlayCity, 17=MSX Darky, 18=ZXS TurboSound, 19=SVM Dual PSG)
 ;###            B=module type (0=SKM, 1=ST2, 3=PT3)
 
 psgsetrou0
@@ -285,11 +303,13 @@ dw sendregMSX,msxskm,msxreg,msxpt3,msxini  ;msx psg
 dw sendreg0  ,pcwskm,pcwreg,pcwpt3,pcwini  ;pcw psg
 dw sendreg0  ,eprskm,eprreg,eprpt3,eprini  ;ep  dave
 dw sendreg0  ,zxsskm,zxsreg,zxspt3,zxsini  ;zxs psg
+dw sendreg0  ,svmskm,svmreg,svmpt3,svmini  ;svm psg
 
 psgsetrou1
 dw sendreg0  ,pcyskm,pcyreg,pcypt3,pcyini  ;cpc playcity
 dw sendregMSX,dkyskm,dkyreg,dkypt3,dkyini  ;msx darky
 dw sendreg0  ,zxsskm,zxsreg,turpt3,turini  ;zxs turbosound
+dw sendreg0  ,svmskm,svmreg,sv2pt3,sv2ini  ;svm dual psg
 
 psgsetadr
 db  1:dw SENDREG+1
@@ -298,7 +318,7 @@ db  1:dw st2reg+1
 db  1:dw TS_Play_ROUT+1
 db  0
 
-psgsetst3   dw cpcst2,msxst2,pcwst2,eprst2,zxsst2,0,0,0,0,0,0,0,0,0,0,pcyst2,dkyst2,zxsst2
+psgsetst3   dw cpcst2,msxst2,pcwst2,eprst2,zxsst2,svmst2,0,0,0,0,0,0,0,0,0,pcyst2,dkyst2,zxsst2,svmst2
 
 psgset  push bc
         dec a
@@ -515,6 +535,113 @@ msxpt31 out (c),a
         inc c
         out (c),a
         ret
+
+
+;==============================================================================
+;### SVM PSG ##################################################################
+;==============================================================================
+
+P_PSG1SEL   equ #A0
+P_PSG1DAT   equ #A1
+P_PSG1CTRL  equ #A2
+P_PSG2SEL   equ #A3
+P_PSG2DAT   equ #A4
+P_PSG2CTRL  equ #A5
+
+D_PSGMONO   equ #00
+D_PSGSABC   equ #10
+D_PSGSACB   equ #20
+
+D_PSGOFF    equ #00
+D_PSGCCPC   equ #01
+D_PSGCZX    equ #02
+D_PSGCMSX   equ #03
+D_PSGCST    equ #04
+
+;### SVMINI -> inits SVM-PSG sound output
+;### Input      A=module type (0=SKM, 1=ST2, 2=MP3, 3=PT3)
+svmini  ld a,D_PSGCCPC+D_PSGSABC
+        out (P_PSG1CTRL),a
+        ld a,D_PSGOFF
+        out (P_PSG2CTRL),a
+        ld hl,NT_CPC             ;set CPC frequency for PT3 modules
+        jp pt3frq
+
+;### SVMREG -> reads PSG register from the SVM-PSG
+;### Input      C=register
+;### Output     A=value
+;### Destroyed  -
+svmreg  ld a,c
+        out (P_PSG1SEL),a
+        in a,(P_PSG1DAT)
+        ret
+
+
+;------------------------------------------------------------------------------
+;@@@ MODULE DRIVERS @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+;------------------------------------------------------------------------------
+
+;### SVMSKM -> sends SKM register to the SVM-PSG
+;### Input      D=register, A=data
+svmskm  ld c,a
+        ld a,d
+;### SVMST2 -> sends ST2 register to the SVM-PSG
+;### Input      A=register, C=data
+svmst2  out (P_PSG1SEL),a
+        ld a,c
+        out (P_PSG1DAT),a
+        ret
+
+;### SVMPT3 -> sends PT3 registers to the SVM-PSG
+;### Input      (VARS1+VRS_AYREGS)=register (0-13)
+svmpt3  ld hl,VARS1+VRS_AYREGS      ;channel 0-2
+        ld c,P_PSG1SEL
+svmpt30 xor a
+svmpt31 out (c),a
+        inc c
+        outi
+        dec c
+        inc a
+        cp 13
+        jr nz,svmpt31
+        out (c),a
+        ld a,(hl)
+        and a
+        ret m
+        inc c
+        out (c),a
+        ret
+
+
+;==============================================================================
+;### SVM DUAL PSG #############################################################
+;==============================================================================
+
+;### SV2INI -> inits SVM dual psg output
+;### Input      A=module type (0=SKM, 1=ST2, 2=MP3, 3=PT3)
+sv2ini  ld a,D_PSGCCPC+D_PSGSABC
+        out (P_PSG1CTRL),a
+        ld a,D_PSGCCPC+D_PSGSABC
+        out (P_PSG2CTRL),a
+        ld hl,NT_CPC        ;set CPC frequency for PT3 modules
+        call pt3frq
+        ;...
+        ret
+
+
+;------------------------------------------------------------------------------
+;@@@ MODULE DRIVERS @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+;------------------------------------------------------------------------------
+
+;### SV2PT3 -> sends PT3 registers to the SVM dual psg
+;### Input      (VARS1+VRS_AYREGS)=register left  (0-13)
+;###            (VARS2+VRS_AYREGS)=register right (0-13)
+sv2pt3  ld hl,VARS1+VRS_AYREGS      ;channel 0-2
+        ld c,P_PSG1SEL
+        call svmpt30
+        ld hl,VARS2+VRS_AYREGS      ;channel 3-5
+        ld c,P_PSG2SEL
+        jr svmpt30
 
 
 ;==============================================================================
